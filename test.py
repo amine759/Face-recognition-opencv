@@ -2,7 +2,6 @@ import numpy as np
 import cv2
 import os   
 import random 
-import matplotlib.pyplot as plt
 
 face_recognizer = cv2.face.LBPHFaceRecognizer_create()
 
