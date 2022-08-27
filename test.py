@@ -1,8 +1,9 @@
 import numpy as np 
 import cv2
 import os   
+import random 
+import matplotlib.pyplot as plt
 
-labels=['amine','Ghassane','giannis']
 face_recognizer = cv2.face.LBPHFaceRecognizer_create()
 
 def detect_face(img):
@@ -22,16 +23,18 @@ def draw_rectangle(img, rect):
 def prepare_data(folder):
     x_train=[]
     y_labels=[]
+    LABELS=[]
     index=0
     dirs = os.listdir(folder)
     for dir_name in dirs :
         index+=1
         abs_path_dir = folder + "/" + dir_name
+        LABELS.append(dir_name)
         names = os.listdir(abs_path_dir)
         for img_name in names :
             img_path = abs_path_dir + "/" + img_name
             img = cv2.imread(img_path)
-            cv2.waitKey(100)
+            cv2.waitKey(10)
             face, rect = detect_face(img)
             draw_rectangle(img,rect)
             cv2.imshow("Training on images", cv2.resize(img, (600, 400)))
@@ -44,14 +47,38 @@ def prepare_data(folder):
     cv2.waitKey(1)
     cv2.destroyAllWindows()
 
-    return x_train, y_labels
+    return x_train, y_labels, LABELS
 
-faces,y_labels = prepare_data("dataset")
+
+def augment_data(imgs,rotations,labels):
+    resulting_imgs=[]
+    y_labels=[]
+    for(img,label) in zip(imgs,labels):
+        rows,cols=img.shape
+        for j in rotations:
+            rot_matrix = cv2.getRotationMatrix2D(((cols-1)/2.0,(rows-1)/2.0),j,1)
+            affined_img = cv2.warpAffine(img,rot_matrix,(cols,rows),borderValue=(1,1,1))
+            resulting_imgs.append(affined_img)
+            y_labels.append(label)
+    return resulting_imgs, np.array(y_labels)
+
+
+faces,y_labels,LABELS = prepare_data("dataset")
 print("Total faces:", len(faces))
 
-#face_recognizer.train(faces, np.array(y_labels))
-#face_recognizer.save('model.yml')
+rotations = np.arange(0, 40)
+
+X_augmented, Y = augment_data(faces, rotations, y_labels)
+
+print('training ... ')
+face_recognizer.train(X_augmented, Y)
+face_recognizer.save('model.yml')
+
 face_recognizer.read('model.yml')
+
+for i in range(len(X_augmented)):
+    cv2.imshow("augment", cv2.resize(X_augmented[i], (600, 400)))
+    cv2.waitKey(1)
 
 def draw_text(img, text, x, y):
     cv2.putText(img, text, (x, y), cv2.FONT_HERSHEY_PLAIN, 6, (0, 255, 0), 5)
@@ -61,13 +88,13 @@ def predict(test_img):
     face, rect = detect_face(img)
 
     label, confidence = face_recognizer.predict(face)
-    prediction = labels[label-1]
+    print("predicted label:",label)
+    prediction = LABELS[label-1]
     draw_rectangle(img, rect)
     draw_text(img, prediction, rect[0], rect[1]-5)
     return img
 
 test_path ="dataset/Ghassane/" + os.listdir("dataset/Ghassane")[0]
-print(test_path)
 test_img = cv2.imread(test_path)
 prediction1 = predict(test_img)
 cv2.imshow("test", cv2.resize(prediction1, (600, 400)))
